@@ -1000,9 +1000,10 @@ button.nodie {
 
 .sheet-rolltemplate-rmustatroll .sheet-statroll {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
 }
-.sheet-rolltemplate-rmustatroll .sheet-statroll span:nth-child(4n) {
+.sheet-rolltemplate-rmustatroll .sheet-statroll span:nth-child(5n-1),
+.sheet-rolltemplate-rmustatroll .sheet-statroll span:nth-child(5n) {
     font-style: italic;
     color: rgb(128, 128, 128);
 }
@@ -2018,4 +2019,3 @@ input:not(:checked).trackerboxtoggle + .trackersubbox { display: none; }
 
 
 /* vim: set sts=4 sw=4 syn=css : */
-

@@ -318,28 +318,28 @@
   <div class='sheet-rolltemplate-rmurollbox sheet-rolltemplate-rollattack'>
     Stat roll! {{computed::powerlevel}}
     <div class='statroll'>
-      <span>Stat</span><span>Pot</span><span>Temp</span><span>Spare</span>
+      <span>Stat</span><span>Pot</span><span>Temp</span><span>Spare</span><span>Discard</span>
       <span>Agility</span><span>{{computed::agilitypot}}</span><span>{{computed::agilitytemp}}</span>
-		<span>{{computed::agilityspare}}</span>
+		<span>{{computed::agilityspare}}</span><span>{{computed::agilitydiscarded}}</span>
       <span>Constitution</span><span>{{computed::constitutionpot}}</span><span>{{computed::constitutiontemp}}</span>
-		<span>{{computed::constitutionspare}}</span>
+		<span>{{computed::constitutionspare}}</span><span>{{computed::constitutiondiscarded}}</span>
       <span>Empathy</span><span>{{computed::empathypot}}</span><span>{{computed::empathytemp}}</span>
-		<span>{{computed::empathyspare}}</span>
+		<span>{{computed::empathyspare}}</span><span>{{computed::empathydiscarded}}</span>
       <span>Intuition</span><span>{{computed::intuitionpot}}</span><span>{{computed::intuitiontemp}}</span>
-		<span>{{computed::intuitionspare}}</span>
+		<span>{{computed::intuitionspare}}</span><span>{{computed::intuitiondiscarded}}</span>
       <span>Memory</span><span>{{computed::memorypot}}</span><span>{{computed::memorytemp}}</span>
-		<span>{{computed::memoryspare}}</span>
+		<span>{{computed::memoryspare}}</span><span>{{computed::memorydiscarded}}</span>
       <span>Presence</span><span>{{computed::presencepot}}</span><span>{{computed::presencetemp}}</span>
-		<span>{{computed::presencespare}}</span>
+		<span>{{computed::presencespare}}</span><span>{{computed::presencediscarded}}</span>
       <span>Quickness</span><span>{{computed::quicknesspot}}</span><span>{{computed::quicknesstemp}}</span>
-		<span>{{computed::quicknessspare}}</span>
+		<span>{{computed::quicknessspare}}</span><span>{{computed::quicknessdiscarded}}</span>
       <span>Reasoning</span><span>{{computed::reasoningpot}}</span><span>{{computed::reasoningtemp}}</span>
-		<span>{{computed::reasoningspare}}</span>
+		<span>{{computed::reasoningspare}}</span><span>{{computed::reasoningdiscarded}}</span>
       <span>Self-Discipline</span><span>{{computed::selfdisciplinepot}}</span>
 		<span>{{computed::selfdisciplinetemp}}</span>
-		<span>{{computed::selfdisciplinespare}}</span>
+		<span>{{computed::selfdisciplinespare}}</span><span>{{computed::selfdisciplinediscarded}}</span>
       <span>Strength</span><span>{{computed::strengthpot}}</span><span>{{computed::strengthtemp}}</span>
-		<span>{{computed::strengthspare}}</span>
+		<span>{{computed::strengthspare}}</span><span>{{computed::strengthdiscarded}}</span>
     </div>
   </div>
 </rolltemplate>
@@ -10446,6 +10446,12 @@ Uses (Lvl/Total) <span name='attr_traps_usecount'></span> / <span name='attr_tra
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select><br>
+      Four Stat Rolls (house rule: roll 4, keep best 2)
+          (<span style="font-family: monospace;">option_fourstatrolls</span>):
+          <select name="attr_option_fourstatrolls" class="fancyselect smallselect">
+            <option value="no">No (standard 3 rolls)</option>
+            <option value="yes">Yes (4 rolls, keep best 2)</option>
+          </select><br>
       Zero Power Development ranks bonus:  
         (<span style="font-family: monospace;">option_ppzerorankbonus</span>):
           <select name="attr_option_ppzerorankbonus" class="fancyselect smallselect">
@@ -12322,6 +12328,7 @@ const knownproperties = {
   // Options
   option_fixedrrbase: { type: "string" },
   option_allownoprepovercast: { type: "string" },
+  option_fourstatrolls: { type: "string" },
   option_usefx: { type: "string" },
 
   // Roll20 Meta Stuff
@@ -17871,55 +17878,77 @@ onCheck("page:stats", () => {
 
 // Use the system functions to roll stats openly, not
 // using JS
-function systemRollStats(min, powerlevel) {
+function systemRollStats(min, powerlevel, fourRolls = false) {
   if (!min) {
     min = 0;
   }
 
+  const rollsPerStat = fourRolls ? 4 : 3;
+  const totalRolls = rollsPerStat * RMUStats.statfullnames.length;
   const statstrs = [];
-  for (let i = 0 ; i < 10; i ++) {
-    statstrs.push(`{\{${RMUStats.statfullnames[i]}pot=$[[${3 * i}]]}}`)
-    statstrs.push(`{\{${RMUStats.statfullnames[i]}temp=$[[${3 * i + 1}]]}}`)
-    statstrs.push(`{\{${RMUStats.statfullnames[i]}spare=$[[${3 * i + 2}]]}}`)
+
+  for (let i = 0 ; i < RMUStats.statfullnames.length; i ++) {
+    const base = rollsPerStat * i;
+    const stat = RMUStats.statfullnames[i];
+
+    // Keep the normal names for the first three rolls so the existing
+    // roll template/result handling remains compatible.
+    statstrs.push(`{\{${stat}pot=$[[${base}]]}}`)
+    statstrs.push(`{\{${stat}temp=$[[${base + 1}]]}}`)
+    statstrs.push(`{\{${stat}spare=$[[${base + 2}]]}}`)
+    if (fourRolls) {
+      statstrs.push(`{\{${stat}discarded=$[[${base + 3}]]}}`)
+    }
   }
 
   const roll_string = "&{template:rmustatroll} " +
-      //" [[ 1d100r<${min} ]] ".repeat(30) +
-      `[[ 1d100r<${min} ]]`.repeat(30) +
+      `[[ 1d100r<${min} ]]`.repeat(totalRolls) +
       statstrs.join('') + '{\{powerlevel=[[0]]}}';
   console.log(roll_string);
+
   startRoll(roll_string, roll => {
     const rollupdates = {};
-    const sheetupdates = {}
-    RMUStats.statfullnames.forEach((stat) => {
-      let pot = roll.results[stat + 'pot'].result
-      let temp = roll.results[stat + 'temp'].result
-      let spare = roll.results[stat + 'spare'].result
-      console.log(stat, pot, temp, spare,roll.results);
+    const sheetupdates = {};
 
-      // Find smallest
-      if (pot < spare) {
-	[pot, spare] = [spare, pot];
+    RMUStats.statfullnames.forEach((stat) => {
+      const values = [
+        roll.results[stat + 'pot'].result,
+        roll.results[stat + 'temp'].result,
+        roll.results[stat + 'spare'].result
+      ];
+
+      if (fourRolls) {
+        values.push(roll.results[stat + 'discarded'].result);
       }
-      if (temp < spare) {
-	[temp, spare] = [spare, temp];
-      }
-      if (temp > pot) {
-	[temp, pot] = [pot, temp];
-      }
-  
+
+      // Highest = Potential, second highest = Temporary.
+      // The next roll remains Spare; with the house rule the lowest is discarded.
+      values.sort((a, b) => b - a);
+
+      const pot = values[0];
+      const temp = values[1];
+      const spare = values[2];
+      const discarded = fourRolls ? values[3] : '-';
+
+      console.log(stat, pot, temp, spare, discarded, roll.results);
+
       rollupdates[stat + 'pot'] = pot;
       rollupdates[stat + 'temp'] = temp;
       rollupdates[stat + 'spare'] = spare;
-      sheetupdates["stat_" + stat + "_potential"]  = pot;
-      sheetupdates["stat_" + stat]  = temp;
-      sheetupdates["stat_" + stat + "_value_spare"]  = spare;
-    }); 
+      rollupdates[stat + 'discarded'] = discarded;
+
+      sheetupdates["stat_" + stat + "_potential"] = pot;
+      sheetupdates["stat_" + stat] = temp;
+      sheetupdates["stat_" + stat + "_value_spare"] = spare;
+    });
+
+    const houseRuleText = fourRolls ? ' — House Rule: 4 rolls, keep best 2' : '';
     if (powerlevel) {
-      rollupdates.powerlevel = `${powerlevel} Power Level (reroll < ${min})`;
+      rollupdates.powerlevel = `${powerlevel} Power Level (reroll < ${min})${houseRuleText}`;
     } else {
-      rollupdates.powerlevel = `Power Level reroll < ${min}`;
+      rollupdates.powerlevel = `Power Level reroll < ${min}${houseRuleText}`;
     }
+
     finishRoll(roll.rollId, rollupdates);
     addPendingFunction("Rollstats updated stats", updateStatOptions);
     setAttrsPending(sheetupdates);
@@ -17941,7 +17970,10 @@ onCheck("clicked:rollstats", function(ev) {
     case 'Epic': reroll = 41; break;
   }
   rollStatsIncrement(data);
-  systemRollStats(reroll, powerlevel);
+  getAttrs(["option_fourstatrolls"], attrs => {
+    const fourRolls = attrs.option_fourstatrolls === "yes";
+    systemRollStats(reroll, powerlevel, fourRolls);
+  });
 });
 
 function rollStatsIncrement(cmdata) {
@@ -23845,8 +23877,7 @@ creature.newCreature = function(name, jdata) {
   }
   
   updates.at_torso = updates.at_head = updates.at_arms = updates.at_legs = updates.at;
-  updates.db = cdata.DB || 0;
-  updates.db_misc = `[{"name":"Creature Base DB","value":${updates.db}}]`;
+  updates.db = cdata.DB;
   updates.db_base = cdata.DB; // Base is this - change when people click different defense
   updates.defenses = cdata.defenses || [];
 
@@ -26141,4 +26172,3 @@ onCheck("clicked:sendtochat", () => {
 
 
 </div>
-
